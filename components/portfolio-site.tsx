@@ -17,7 +17,6 @@ import {
   Cpu,
   Database,
   Download,
-  ExternalLink,
   FileText,
   Gauge,
   GitBranch,
@@ -97,9 +96,9 @@ type ArchitectureNode = {
 const profile = {
   name: "TamilArasan N",
   title: "Backend Software Engineer",
-  email: "hello@tamilarasan.dev",
-  github: "https://github.com/tamil-arasan",
-  linkedin: "https://www.linkedin.com/in/tamilarasan-n",
+  email: "tamilarasan.n.dev@gmail.com",
+  github: "https://github.com/tamilarasan-n-dev/",
+  linkedin: "https://www.linkedin.com/in/tamil-dev/",
   location: "India",
 };
 
@@ -473,24 +472,11 @@ const radarData = [
 
 const blogPosts = [
   {
-    title: "Designing AI Agents That Do Not Collapse Under State",
-    tag: "AI Agents",
-    summary: "Graph orchestration, memory boundaries, retries, and observability for production LLM systems.",
-  },
-  {
-    title: "When 300M Records Force You To Respect I/O",
+    title: "Processing 1.5TB of NDJSON on a Potato Laptop with Rust",
     tag: "Performance",
-    summary: "Streaming conversion, compression tradeoffs, row groups, worker pools, and DuckDB query paths.",
-  },
-  {
-    title: "Backend Architecture For Products That Keep Moving",
-    tag: "System Design",
-    summary: "A practical view of queues, caches, database boundaries, deploys, and failure recovery.",
-  },
-  {
-    title: "Linux Is The Best Debugger You Already Have",
-    tag: "Linux",
-    summary: "Processes, ports, logs, file descriptors, sockets, and shell workflows for everyday operations.",
+    summary:
+      "Streaming conversion, compression tradeoffs, worker pools, Parquet, and DuckDB query paths on low-end hardware.",
+    href: "/blogs/0x1",
   },
 ];
 
@@ -619,6 +605,7 @@ function Navigation() {
     ["About", "#about"],
     ["Experience", "#experience"],
     ["Projects", "#projects"],
+    ["Blogs", "/blogs"],
     ["Architecture", "#architecture"],
     ["Contact", "#contact"],
   ];
@@ -640,7 +627,7 @@ function Navigation() {
               key={label}
               href={href}
               onClick={(e) => {
-                if (scrollLenis) {
+                if (href.startsWith("#") && scrollLenis) {
                   e.preventDefault();
                   scrollLenis.scrollTo(href, { offset: -80 });
                 }
@@ -1255,24 +1242,6 @@ function ProjectShowcase({ project, index }: { project: Project; index: number }
               </span>
             ))}
           </div>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href={profile.github}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm text-white transition hover:border-cyanline/40 hover:bg-cyanline/10"
-            >
-              <Code2 className="h-4 w-4" />
-              GitHub
-            </a>
-            <a
-              href="#contact"
-              className="inline-flex items-center gap-2 rounded-md border border-cyanline/30 bg-cyanline/10 px-4 py-2.5 text-sm text-cyanline transition hover:bg-cyanline/15"
-            >
-              <ExternalLink className="h-4 w-4" />
-              Case Study
-            </a>
-          </div>
         </div>
         <div className="relative min-h-[430px] border-t border-white/10 bg-black/22 p-6 lg:border-l lg:border-t-0">
           <ArchitectureDiagram steps={project.architecture} index={index} />
@@ -1690,10 +1659,10 @@ function BlogSection() {
               </h3>
               <p className="mt-4 leading-7 text-zinc-400">{post.summary}</p>
               <a
-                href="#contact"
+                href={post.href}
                 className="mt-6 inline-flex items-center gap-2 text-sm text-cyanline"
               >
-                Discuss this topic
+                Read article
                 <ArrowRight className="h-4 w-4" />
               </a>
             </article>

@@ -1,0 +1,591 @@
+# Processing 1.5TB of NDJSON on a Potato Laptop with Rust 🦀
+
+> TL;DR; I used Rust to process ~1.5 TB of NDJSON data (~300 million objects) on an i3 potato laptop with 8 GB RAM and a 10‑year‑old 5400 RPM HDD in just few hours. No SSD. No Threadripper. Just Rust, careful I/O, and realistic engineering stuffs.
+> 
+
+---
+
+## Hardware (a.k.a. the "don’t try this at home" setup)
+
+- **CPU**: Intel i3‑1215U (2P + 4E cores, 8 threads)
+- **RAM**: 8 GB DDR4 3200 MHz
+- **Disk**: 5400 RPM External HDD (yes, really)
+- **OS**: Linux (Ubuntu)
+
+No NVMe, no RAID, no cloud credits. Just patience and curiosity.
+
+---
+
+## The Dataset
+
+A few weeks ago, I downloaded a public archive of **`.gz`‑compressed NDJSON files** for experimentation.
+
+- **Files**: ~430 `.gz` files
+- **Compressed size**: ~180 GB
+- **Uncompressed size**: ~1.2–1.5 TB
+- **Objects**: ~280–320 million JSON objects
+- **Schema**: Strict and identical across all objects
+
+An interesting fact: **this entire dataset is just text**, not 4K videos, just plain JSON 😄
+
+### Some quick stats
+
+- **Average object size**: ~4.9 KB
+- **Average fields/object**: 78
+- **Null or empty fields**: ~60–65%
+
+That last number became the core of this story.
+
+---
+
+# The Plan was very simple; But execution wasn’t
+
+> **Validate and understand the data, Measure and analyze it….. But I went deeper**
+> 
+
+## Step 1: Verify JSON Integrity (Trust, but verify)
+
+Before doing anything serious, I validated the JSON syntax of every file using `zcat` and `jq`.
+
+```bash
+for f in *.gz; do
+  echo "checking $f"
+  zcat "$f" | jq -e empty >/dev/null || echo "invalid : $f"
+done
+```
+
+- **Time**: ~2.3 hours
+- **Result**: Only **2 files** were corrupt → skipped
+
+This step is boring, slow, and absolutely mandatory.
+
+---
+
+## Step 2: Schema Sampling
+
+Because every object had the same structure(That’s what she said), I extracted a single sample:
+
+```bash
+zcat part-00001.gz | jq -n 'input'
+```
+
+This confirmed:
+
+- Fixed schema
+- Many optional fields
+- A *lot* of `null` and empty values
+
+---
+
+## Step 3: Parallel Statistical Analysis in Rust
+
+Before deleting anything, I wanted **numbers**:
+
+- How many fields are null?
+- What is the per‑field null ratio?
+- What is the distribution of values (gender, country, job title, etc.)?
+
+### Why Rust?
+
+- It is popular these days 😂
+- Streaming I/O without loading files into memory, BTW This is not `mmap`
+- True parallelism (no GIL)
+- Predictable performance
+- Curiosity!!
+
+### Core analysis snippet (simplified) Please check the repo at last
+
+```rust
+reader
+    .lines()
+    .par_bridge()
+    .filter_map(Result::ok)
+    .fold(FileStats::default, |mut acc, line| {
+        if let Ok(Value::Object(obj)) = serde_json::from_str(&line) {
+            acc.rows += 1;
+            for (k, v) in obj {
+                acc.total_fields += 1;
+                if is_empty_value(&v) {
+                    acc.null_or_empty_fields += 1;
+                }
+            }
+        }
+        acc
+    })
+    .reduce(FileStats::default, |a, b| a.merge(b));
+
+```
+
+### The `par_bridge` aka `parallel bridge` was the VIP in the snippet to make it done
+
+### Here is the typical definition of it
+
+The `par_bridge` method in Rust, provided by the external **Rayon** crate, is a conversion trait used to turn a standard, sequential `Iterator` into a `ParallelIterator`.
+
+This function is particularly useful for parallelizing iterators that are difficult to implement otherwise, such as those involving channels or file I/O, though it may be less efficient than using `par_iter` on a parallel collection directly
+
+### Sample output, Please check the repo at last
+
+```md
+📂 Analyzing part-00000.gz
+Objects            : 742500
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.4
+Null+empty ratio   : 64.68%
+
+📂 Analyzing part-00001.gz
+Objects            : 747210
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.4
+Null+empty ratio   : 64.68%
+
+📂 Analyzing part-00003.gz
+Objects            : 753522
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.4
+Null+empty ratio   : 64.61%
+
+📂 Analyzing part-00004.gz
+Objects            : 747566
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.41
+Null+empty ratio   : 64.63%
+
+📂 Analyzing part-00005.gz
+Objects            : 750488
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.43
+Null+empty ratio   : 64.61%
+.
+.
+.
+.
+
+📂 Analyzing part-00390.gz
+Objects            : 743619
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.41
+Null+empty ratio   : 64.68%
+
+📂 Analyzing part-00391.gz
+Objects            : 750234
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.45
+Null+empty ratio   : 64.68%
+
+📂 Analyzing part-00392.gz
+Objects            : 749860
+Avg fields/object  : 78.00
+Avg null+empty/obj : 50.44
+Null+empty ratio   : 64.6%
+
+📊 OVERALL SUMMARY (391 files)
+Total objects       : 292576687
+Avg fields/object   : 78.00
+Avg null+empty/obj  : 50.42
+Overall null ratio  : 64.64%
+
+`cargo run --release  13657.21s user 1842.31s system 417% cpu 8.510 total`
+
+This sentence is now directly derivable:
+
+“Each object has ~78 fields, out of which ~50 are null or empty on average.”
+```
+
+⏱ **Total time**: ~3.7 hours
+
+<div className="chart-wrapper">
+    <h3>Continent Demographics</h3>
+    <ContinentChart />
+</div>
+
+<div className="chart-wrapper">
+    <h3>Top Countries by Developer Count</h3>
+    <CountryChart />
+</div>
+
+<div className="chart-wrapper">
+    <h3>Gender Distribution</h3>
+    <GenderChart />
+</div>
+
+In the meantime, I prepared my lunch 🤠. The mixer processed the fruits faster than the CPU 😂, and my hands moved the ingredients between vessels faster than `mmap` 😂
+
+> The plan was to stop at this point, But,But… the 60% null values triggers me to deep dive
+> 
+
+---
+
+## “Let’s Just Remove Nulls” (Famous last words)
+
+At first glance, removing null fields seemed obvious.
+
+> I realished, I was wrong, I learnt, I did something else; let me explain
+> 
+
+### Cost of one always‑null column in NDJSON
+
+```json
+"cute_memories": null
+```
+
+≈ 20–25 bytes per row
+
+```
+25 bytes × 300,000,000 rows ≈ 7 GB
+
+```
+
+👉 **That’s for ONE column.**
+
+I had dozens like this 😭
+
+---
+
+## Next-Step : Parallel GZ → Clean → GZ Pipeline
+
+I wrote a worker‑pool architecture:
+
+> 8 workers (matching logical cores)
+> 
+
+I rusted this by writing a Rust program that reads `.gz` → Parses JSON line‑by‑line → Removes null & empty fields → Writes into disk. A simple pipeline, but enough for my use-case. The CPU has 8 thread, on the high-level each thread follows this pipeline to achieve true parallelizm
+
+### Architecture
+
+```
+[GZ files]
+   ↓
+8 worker threads
+   ↓
+[GZ cleaned files]
+```
+
+### Result (OMG twist)
+
+| Version        | .gz Size | Extracted Size |
+|----------------|----------|----------------|
+| Original       | ~280 MB  | ~2.3 GB        |
+| Null-removed   | ~250 MB  | ~980 MB        |
+
+
+😐 **Compressed size barely changed, I was shocked, but that’s the fact**
+
+---
+
+## Why gzip barely changed (core reason)
+
+### Gzip does **dictionary-based compression**
+
+(Gzip = DEFLATE = LZ77 + Huffman)
+
+It does **not** care about *meaning*, only **repetition patterns**.
+
+> SO, just learnt something, not accived anything big 😤
+> 
+
+---
+
+## I decided to try Columnar Storage (The Real Win)
+
+At this point, the correct answer was obvious:
+
+> Stop fighting row‑oriented text formats.
+> 
+
+This time I had too many options to try on DB, language, architecture, approaches, so I decided to make it simple with high-level languages. Because I was (****) up with rust, Honestly see my search & prompt history
+
+- how to create a hashmap in rust
+- ^^^ `let` cannot be used for global variables
+- How to use Set() as a value for hasmap in rust, And write helper fn to add, check & remove values to the set
+- how to build a library in rust once and use it on other projects without build it again
+
+### What I felt as a bottleneck in other languages, other solutions
+
+- Node will handle it in a single thread, OS scheduler moves the process between cores, but i can write an external worker to make it truly parallel, but I had no idea
+- **Python threads**  → blocked by **GIL and its tortoise nature**
+
+> The urrrr urrrr CPU sound pushes me to (****) up with the rust again 😤
+> 
+- Rust fully parallel  no GIL, use all my 8 cores at a time
+
+```rust
+// Process a single gz file: read, clean, compress, write
+fn process_file(task: &FileTask) -> FileResult {
+    let start = Instant::now();
+    let file_name = Path::new(&task.input_path)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    let mut rows_processed = 0u64;
+    let mut fields_removed = 0u64;
+
+    // Open input file
+    let input_file = match File::open(&task.input_path) {
+        Ok(f) => f,
+        Err(e) => {
+            return FileResult {
+                file_name,
+                rows_processed: 0,
+                fields_removed: 0,
+                duration_secs: start.elapsed().as_secs_f64(),
+                success: false,
+                error_msg: Some(format!("Failed to open input file: {}", e)),
+            };
+        }
+    };
+
+    // Create output file
+    let output_file = match File::create(&task.output_path) {
+        Ok(f) => f,
+        Err(e) => {
+            return FileResult {
+                file_name,
+                rows_processed: 0,
+                fields_removed: 0,
+                duration_secs: start.elapsed().as_secs_f64(),
+                success: false,
+                error_msg: Some(format!("Failed to create output file: {}", e)),
+            };
+        }
+    };
+
+    // Setup gz decoder and encoder
+    let decoder = GzDecoder::new(input_file);
+    let reader = BufReader::with_capacity(1024 * 1024, decoder); // 1MB buffer
+
+    let encoder = GzEncoder::new(output_file, Compression::default());
+    let mut writer = BufWriter::with_capacity(1024 * 1024, encoder); // 1MB buffer
+
+    // Process line by line
+    for line_result in reader.lines() {
+        let line = match line_result {
+            Ok(l) => l,
+            Err(e) => {
+                eprintln!("⚠️  Warning: Failed to read line in {}: {}", file_name, e);
+                continue;
+            }
+        };
+
+        // Skip empty lines
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        // Parse JSON
+        let value: Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("⚠️  Warning: Failed to parse JSON in {}: {}", file_name, e);
+                continue;
+            }
+        };
+
+        // Count fields to be removed
+        fields_removed += count_null_empty_fields(&value);
+
+        // Clean the JSON
+        if let Some(cleaned) = remove_null_empty(value) {
+            // Serialize back to JSON string
+            let json_str = match serde_json::to_string(&cleaned) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("⚠️  Warning: Failed to serialize JSON in {}: {}", file_name, e);
+                    continue;
+                }
+            };
+
+            // Write to output
+            if let Err(e) = writeln!(writer, "{}", json_str) {
+                eprintln!("⚠️  Warning: Failed to write line in {}: {}", file_name, e);
+                continue;
+            }
+        }
+
+        rows_processed += 1;
+
+        // Progress indicator every 100k rows
+        if rows_processed % 100_000 == 0 {
+            println!("   📄 {} - Processed {} rows...", file_name, rows_processed);
+        }
+    }
+
+    // Flush and finish compression
+    if let Err(e) = writer.flush() {
+        return FileResult {
+            file_name,
+            rows_processed,
+            fields_removed,
+            duration_secs: start.elapsed().as_secs_f64(),
+            success: false,
+            error_msg: Some(format!("Failed to flush writer: {}", e)),
+        };
+    }
+
+    // Get the inner GzEncoder and finish it properly
+    let encoder = match writer.into_inner() {
+        Ok(e) => e,
+        Err(e) => {
+            return FileResult {
+                file_name,
+                rows_processed,
+                fields_removed,
+                duration_secs: start.elapsed().as_secs_f64(),
+                success: false,
+                error_msg: Some(format!("Failed to get encoder: {}", e)),
+            };
+        }
+    };
+
+    if let Err(e) = encoder.finish() {
+        return FileResult {
+            file_name,
+            rows_processed,
+            fields_removed,
+            duration_secs: start.elapsed().as_secs_f64(),
+            success: false,
+            error_msg: Some(format!("Failed to finish compression: {}", e)),
+        };
+    }
+
+    FileResult {
+        file_name,
+        rows_processed,
+        fields_removed,
+        duration_secs: start.elapsed().as_secs_f64(),
+        success: true,
+        error_msg: None,
+    }
+}
+
+```
+
+---
+
+```rust
+
+/// Worker function that processes files from the channel
+fn worker(id: usize, receiver: Receiver<FileTask>, result_sender: Sender<FileResult>) {
+    println!("🔧 Worker {} started", id);
+    
+    while let Ok(task) = receiver.recv() {
+        println!("🚀 Worker {} processing: {}", id, task.input_path);
+        let result = process_file(&task);
+        
+        if result.success {
+            println!(
+                "✅ Worker {} completed: {} ({} rows, {} fields removed, {:.2}s)",
+                id, result.file_name, result.rows_processed, result.fields_removed, result.duration_secs
+            );
+        } else {
+            println!(
+                "❌ Worker {} failed: {} - {}",
+                id,
+                result.file_name,
+                result.error_msg.as_ref().unwrap_or(&"Unknown error".to_string())
+            );
+        }
+        
+        let _ = result_sender.send(result);
+    }
+    
+    println!("🔧 Worker {} finished", id);
+}
+```
+
+### Why columnar (Parquet)?
+
+- Minimal disk I/O
+- Sequential reads
+- Cache‑friendly
+- SIMD‑friendly
+- Perfect for analytics & scans
+
+### The math, The fact
+
+In practice, Parquet stores sparse columns using definition levels, RLE, and dictionary encoding. For highly sparse columns, the effective storage can approach a few bits per row, orders of magnitude smaller than NDJSON.
+
+```
+300M bits ≈ 37.5 MB
+```
+
+🔥 **7 GB → 37 MB for a single sparse column**
+
+That’s a ~**200× reduction**.
+
+---
+
+## Final Architecture
+
+```
+400 gz files
+   ↓
+6–8 Rust workers
+   ↓
+1 parquet per input file
+   ↓
+Directory of parquet files
+   ↓
+DuckDB queries
+
+```
+
+- **One‑time conversion cost**: ~4+ hours
+- **Final size**: ~90 GB (from ~1.5 TB)
+- **Data loss**: 0%
+
+And finally!!!, I turned 1.5TB [180GB in gz] of data into 90GB parquet, 0% loss. The NDJSON has 60% null values. So turned into a column-oriented structure, one-time cost. The cost is 4+ hours. Still, I was able to do it for around 100 files only, since the write is costly & CPU is a bottleneck for me
+
+---
+
+## What's next - Querying with DuckDB
+
+Once in Parquet, everything changed.
+
+- Ad‑hoc analytics became trivial
+- Queries ran in seconds
+- CPU usage finally made sense
+
+DuckDB + Parquet felt unfairly fast & Happy.
+
+---
+
+## What I Learned
+
+1. **NDJSON is terrible at scale**
+2. **gzip hides inefficiencies surprisingly well**
+3. **Parallel I/O beats clever algorithms**
+4. **Columnar formats are not optional for analytics**
+5. Rust lets you do “big data” without “big hardware.”
+6. How to spend more time on documenting the work than the time spent on actual work
+
+---
+
+## Closing Thoughts
+
+This was not about being clever.
+
+It was about:
+
+- Understanding formats
+- Measuring before optimizing
+- Respecting I/O limits
+- Choosing the right data layout
+
+And yes, hearing the CPU scream(urrr urrrr) until it finally went quiet 😤
+
+If you’re sitting on large JSON datasets and wondering, *"Should I convert this to Parquet?"*
+
+The answer is **yes**.
+
+Always.
+
+### Final step — find & replace the em-dashes — iykyk 😭
+
+## Do Check-out the repo, Plz
+
+<GitObserverLink href="https://github.com/tamilarasan-n-dev/rust-cleaner">
+  https://github.com/tamilarasan-n-dev/rust-cleaner
+</GitObserverLink>
