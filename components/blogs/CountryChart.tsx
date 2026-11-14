@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { useChartTheme } from "./chart-theme";
 
 ChartJS.register(
   CategoryScale,
@@ -272,6 +273,7 @@ const rawData = {
 };
 
 const CountryChart = () => {
+  const t = useChartTheme();
   const [page, setPage] = useState(0);
   const pageSize = 5;
 
@@ -291,9 +293,10 @@ const CountryChart = () => {
       {
         label: "Population/Value",
         data: values,
-        backgroundColor: "rgba(153, 102, 255, 0.8)",
-        borderColor: "rgba(153, 102, 255, 1)",
-        borderWidth: 1,
+        backgroundColor: t.accent,
+        borderRadius: 4,
+        borderSkipped: false as const,
+        barThickness: 18,
       },
     ],
   };
@@ -305,28 +308,34 @@ const CountryChart = () => {
       legend: {
         display: false,
       },
+      tooltip: { backgroundColor: t.ink, titleColor: t.surface, bodyColor: t.surface, titleFont: t.font, bodyFont: t.font, padding: 10, cornerRadius: 8 },
       title: {
-        display: true,
+        display: false,
         text: "Country Distribution",
-        color: "#374151",
-        font: {
-          size: 16,
-        },
+        color: t.ink,
+        font: { ...t.font, size: 15, weight: 500 as const },
       },
     },
     scales: {
       x: {
         ticks: {
-          color: "#4b5563",
+          color: t.ink3,
+          font: t.font,
+          maxRotation: 0,
+          callback: (v: string | number) =>
+            new Intl.NumberFormat("en-US", { notation: "compact" }).format(Number(v)),
         },
         grid: {
-          color: "#e5e7eb",
+          color: t.rule,
         },
+        border: { display: false },
       },
       y: {
         ticks: {
-          color: "#4b5563",
+          color: t.ink2,
+          font: t.font,
         },
+        border: { display: false },
         grid: {
           display: false,
         },
@@ -346,13 +355,13 @@ const CountryChart = () => {
     <div className="chart-container country-chart">
       <Bar data={data} options={options} />
       <div className="controls">
-        <button onClick={handlePrev} disabled={page === 0}>
+        <button type="button" onClick={handlePrev} disabled={page === 0}>
           Previous
         </button>
         <span className="page-info">
           Page {page + 1} of {totalPages}
         </span>
-        <button onClick={handleNext} disabled={page === totalPages - 1}>
+        <button type="button" onClick={handleNext} disabled={page === totalPages - 1}>
           Next
         </button>
       </div>

@@ -1,5 +1,3 @@
-"use client";
-
 const GitObserverLink = ({
   href,
   children,
@@ -14,9 +12,10 @@ const GitObserverLink = ({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={`text-blue-500 hover:text-blue-600 underline ${className || ""}`}
+      className={`repo-link ${className || ""}`}
     >
-      {children || href}
+      <span>{children || href}</span>
+      <span aria-hidden="true">↗</span>
     </a>
   );
 };

@@ -1,3 +1,4 @@
+import { Nav } from "@/components/site/nav";
 import "./blogs.css";
 
 export default function BlogsLayout({
@@ -5,5 +6,10 @@ export default function BlogsLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return children;
+  return (
+    <>
+      <Nav onHome={false} />
+      <main id="main">{children}</main>
+    </>
+  );
 }

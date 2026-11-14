@@ -10,6 +10,7 @@ import {
   type LegendElement,
   type LegendItem,
 } from "chart.js";
+import { useChartTheme } from "./chart-theme";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -41,6 +42,7 @@ const legendHoverHandlers = {
 };
 
 const ContinentChart = () => {
+  const t = useChartTheme();
   const data = {
     labels: [
       "Oceania",
@@ -56,28 +58,24 @@ const ContinentChart = () => {
         data: [
           5063650, 3500, 42602750, 26189600, 76068150, 47540200, 10777350,
         ],
-        backgroundColor: [
-          "#FF6384",
-          "#36A2EB",
-          "#FFCE56",
-          "#4BC0C0",
-          "#9966FF",
-          "#FF9F40",
-          "#63ff8aff",
-        ],
-        borderWidth: 0,
+        backgroundColor: t.palette(7),
+        borderColor: t.surface,
+        borderWidth: 2,
       },
     ],
   };
 
   const options = {
     responsive: true,
+    cutout: "62%",
     maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "right" as const,
+        labels: { color: t.ink2, font: t.font, boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 2 },
         ...legendHoverHandlers,
       },
+      tooltip: { backgroundColor: t.ink, titleColor: t.surface, bodyColor: t.surface, titleFont: t.font, bodyFont: t.font, padding: 10, cornerRadius: 8 },
     },
   };
 

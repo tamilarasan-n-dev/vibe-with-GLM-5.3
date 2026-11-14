@@ -10,6 +10,7 @@ import {
   type LegendElement,
   type LegendItem,
 } from "chart.js";
+import { useChartTheme } from "./chart-theme";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -41,36 +42,30 @@ const legendHoverHandlers = {
 };
 
 const GenderChart = () => {
+  const t = useChartTheme();
   const data = {
     labels: ["Male", "Female", "Others", "Prefer not to say"],
     datasets: [
       {
         data: [112514752, 107026128, 17837688, 1758043],
-        backgroundColor: [
-          "rgba(54, 162, 235, 0.8)",
-          "rgba(255, 99, 132, 0.8)",
-          "rgba(255, 206, 86, 0.8)",
-          "rgba(223, 45, 0, 0.8)",
-        ],
-        borderColor: [
-          "rgba(54, 162, 235, 1)",
-          "rgba(255, 99, 132, 1)",
-          "rgba(255, 206, 86, 1)",
-          "rgba(223, 45, 0, 1)",
-        ],
-        borderWidth: 1,
+        backgroundColor: t.palette(4),
+        borderColor: t.surface,
+        borderWidth: 2,
       },
     ],
   };
 
   const options = {
     responsive: true,
+    cutout: "62%",
     maintainAspectRatio: false,
     plugins: {
       legend: {
         position: "right" as const,
+        labels: { color: t.ink2, font: t.font, boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 2 },
         ...legendHoverHandlers,
       },
+      tooltip: { backgroundColor: t.ink, titleColor: t.surface, bodyColor: t.surface, titleFont: t.font, bodyFont: t.font, padding: 10, cornerRadius: 8 },
     },
   };
 

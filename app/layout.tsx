@@ -1,5 +1,21 @@
 import type { Metadata, Viewport } from "next";
+import { Archivo, IBM_Plex_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/site/theme";
 import "./globals.css";
+
+const archivo = Archivo({
+  subsets: ["latin"],
+  axes: ["wdth"],
+  variable: "--font-archivo",
+  display: "swap",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tamilarasan.dev"),
@@ -26,6 +42,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "TamilArasan N" }],
   creator: "TamilArasan N",
+  icons: { icon: "/favicon.svg" },
   openGraph: {
     title: "TamilArasan N | Backend Software Engineer",
     description:
@@ -57,8 +74,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#09090b",
-  colorScheme: "dark",
+  themeColor: "#07070a",
 };
 
 export default function RootLayout({
@@ -67,8 +83,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body>{children}</body>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${archivo.variable} ${plexMono.variable}`}
+    >
+      <body>
+        <ThemeProvider>
+          <a
+            href="#main"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-ink focus:px-4 focus:py-2 focus:text-paper"
+          >
+            Skip to content
+          </a>
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
