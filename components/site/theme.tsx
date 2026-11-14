@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
-    <NextThemes attribute="data-theme" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <NextThemes attribute="data-theme" defaultTheme="light" enableSystem disableTransitionOnChange>
       <MotionConfig reducedMotion="user">{children}</MotionConfig>
     </NextThemes>
   );
